@@ -2,7 +2,7 @@ import Operator from '/core/operator.mjs'
 import Grid from '/core/grid.mjs'
 import Cell from '/core/cell.mjs'
 import * as Loader from '/core/loader.mjs';
-import {Mov} from '/core/operators/index.mjs';
+import {Mov, Bridge} from '/core/operators/index.mjs';
 import operatorRenderer from './operator_renderer.mjs';
 import Machine from '/core/machine.mjs';
 import GetExample from './examples.mjs';
@@ -15,6 +15,7 @@ function createElement(type, className, parent) {
 }
 export default class UI {
   static COLOR_OPERATOR = 'rgb(0, 255, 150)';
+  static COLOR_ERROR = 'rgb(255, 0, 0)';
   static COLOR_WIRE = 'rgb(0, 255, 150)';
   static COLOR_FIELD = 'rgba(0, 255, 150, 0.25)';
   static COLOR_DATA = 'white';
@@ -140,9 +141,12 @@ export default class UI {
   }
 
   display() {
+    // As operatorGrid changes far less frequently, we should implement a
+    // dirty/schedule system so we don't redraw it as often
+
     // Clear layers
     this.operatorCtx.clearRect(0, 0, this.operatorGrid.width, this.operatorGrid.height);
-    this.dataCtx.clearRect(0, 0, this.operatorGrid.width, this.operatorGrid.height);
+    this.dataCtx.clearRect(0, 0, this.dataGrid.width, this.dataGrid.height);
 
     // Do scrolling translations
     this.operatorCtx.save();
@@ -196,13 +200,15 @@ export default class UI {
 
   load() {
     this.machine = new Machine();
+    
     if (window.localStorage.getItem('saved')) {
       console.log("loaded");
-      Loader.load(this.machine, JSON.parse(window.localStorage.getItem('saved')));
-    } else {
-      console.log("no saved machine, loading example");
-      Loader.load(this.machine, JSON.parse(GetExample(1)));
+      if (Loader.load(this.machine, JSON.parse(window.localStorage.getItem('saved'))))
+        return;
     }
+    
+    console.log("no saved machine, loading example");
+    Loader.load(this.machine, JSON.parse(GetExample(1)));
   }
 
   gridPosFromScreen(x, y) {
@@ -255,8 +261,11 @@ export default class UI {
 
   }
 
-  createMov(orientation) {
-    var o = new Mov(this.machine, this.focusedCellPos.x, this.focusedCellPos.y);
+  createMov(orientation, bridge) {
+    if (bridge)
+      var o = new Bridge(this.machine, this.focusedCellPos.x, this.focusedCellPos.y);
+    else 
+      var o = new Mov(this.machine, this.focusedCellPos.x, this.focusedCellPos.y);
     o.setOrientation(orientation);
   }
 
@@ -279,25 +288,25 @@ export default class UI {
       } else {
         console.log(key + " not found");
       }
-    } else if (e.keyCode == 8 || e.keyCode == 46) {
+    } else if (e.keyCode == 8 || e.keyCode == 46 || e.key == 'x') {
       // Delete data
       this.machine.deleteCell(this.focusedCellPos.x, this.focusedCellPos.y);
     } else if (e.keyCode == 37) { // left arrow
       if (e.shiftKey)
-        this.createMov(Cell.ORIENTATION.LEFT);
-      this.focusedCellPos.x -= 1;
+        this.createMov(Cell.ORIENTATION.LEFT, e.ctrlKey);
+      this.focusedCellPos.x -= e.ctrlKey ? 2 : 1;
     } else if (e.keyCode == 39) { // Right arrow
       if (e.shiftKey)
-        this.createMov(Cell.ORIENTATION.RIGHT);
-      this.focusedCellPos.x += 1;
+        this.createMov(Cell.ORIENTATION.RIGHT, e.ctrlKey);
+      this.focusedCellPos.x += e.ctrlKey ? 2 : 1;
     } else if (e.keyCode == 38) { // Up arrow
       if (e.shiftKey)
-        this.createMov(Cell.ORIENTATION.UP);
-      this.focusedCellPos.y -= 1;
+        this.createMov(Cell.ORIENTATION.UP, e.ctrlKey);
+      this.focusedCellPos.y -= e.ctrlKey ? 2 : 1;
     } else if (e.keyCode == 40) { // Down arrow
       if (e.shiftKey)
-        this.createMov(Cell.ORIENTATION.DOWN);
-      this.focusedCellPos.y += 1; 
+        this.createMov(Cell.ORIENTATION.DOWN, e.ctrlKey);
+      this.focusedCellPos.y += e.ctrlKey ? 2 : 1; 
     } else {
       //console.log("undefined input");
     }
